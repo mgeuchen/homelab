@@ -1,0 +1,227 @@
+---
+
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: traefik
+spec:
+  controller: traefik.io/ingress-controller
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: traefik
+  namespace: prod
+
+--- 
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: traefik
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["extensions", "networking.k8s.io"]
+    resources: ["ingresses", "ingressclasses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: traefik
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: traefik
+subjects:
+  - kind: ServiceAccount
+    name: traefik
+    namespace: prod
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: traefik-certs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 128Mi
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik-static
+  namespace: prod
+  labels:
+    app: traefik
+data:
+  traefik.yaml: |
+    log:
+      level: INFO
+
+    metrics:
+      prometheus:
+        entryPoint: traefik
+
+    entryPoints:
+      web:
+        address: ":80"
+      websecure:
+        address: ":443"
+        http:
+          tls: {}
+      traefik:
+        address: ":8080"
+
+    api:
+      dashboard: false
+
+    providers:
+      kubernetesingress:
+        ingressclass: traefik
+      # file:
+      #   directory: "/etc/traefik/dynamic"
+      #   watch: false
+    
+    certificatesResolvers:
+      zeroducks:
+        acme:
+          email: matthiasgeuchen@gmail.com
+          storage: /var/traefik/certs/acme.json
+          # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+          caServer: https://acme-v02.api.letsencrypt.org/directory
+          keyType: EC256
+          dnsChallenge:
+            provider: hetzner
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik-dynamic
+  namespace: prod
+  labels:
+    app: traefik
+data:
+  dashboard.yaml: |
+    http:
+      routers:
+        dashboard:
+          rule: Host(`*`) && (PathPrefix(`/api`) || PathPrefix(`/dashboard`))
+          service: api@internal
+          entryPoints:
+          - traefik
+          middlewares:
+          - dashboard-ratelimit
+          - dashboard-auth
+      middlewares:
+        dashboard-auth:
+          basicAuth:
+            # lines generated with `htpasswd -nbB <username> <password>`
+            # users: # TODO configure dashboard and users if needed
+        dashboard-ratelimit:
+          rateLimit:
+            average: 2
+            period: 1s
+            burst: 10
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik
+  namespace: prod
+  labels:
+    app: traefik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traefik
+  template:
+    metadata:
+      labels:
+        app: traefik
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '8080'
+    spec:
+      serviceAccountName: traefik
+      containers:
+      - name: traefik
+        image: traefik:v3.5.4
+        env:
+        - name: HETZNER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: dns-api-token
+              key: token
+        ports:
+        - name: http
+          containerPort: 80
+        - name: https
+          containerPort: 443
+        volumeMounts:
+        - name: config-static
+          mountPath: /etc/traefik
+          readOnly: true
+        # - name: config-dynamic
+        #   mountPath: /etc/traefik/dynamic
+        #   readOnly: true
+        - name: certs
+          mountPath: /var/traefik/certs
+        resources:
+          limits:
+            memory: 64Mi
+      volumes:
+      - name: config-static
+        configMap:
+          name: traefik-static
+      # - name: config-dynamic
+      #   configMap:
+      #     name: traefik-dynamic
+      - name: certs
+        persistentVolumeClaim:
+          claimName: traefik-certs
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+  namespace: prod
+  labels:
+    app: traefik
+spec:
+  type: LoadBalancer
+  selector:
+    app: traefik
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: https
+      port: 443
+      targetPort: https

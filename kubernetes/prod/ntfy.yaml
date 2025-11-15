@@ -1,0 +1,132 @@
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy
+  namespace: prod
+  labels:
+    app: ntfy
+data:
+  server.yml: |
+    log-level: info
+    base-url: https://ntfy.zeroducks.de
+    cache-file: /var/lib/ntfy/cache.db
+    attachment-cache-dir: /var/lib/ntfy/attachments
+    auth-file: /var/lib/ntfy/user.db
+    auth-default-access: deny-all
+    auth-access:
+    - 'mage:*:rw'
+
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy
+  labels:
+    app: ntfy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 128Mi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy
+  namespace: prod
+  labels:
+    app: ntfy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ntfy
+  template:
+    metadata:
+      labels:
+        app: ntfy
+    spec:
+      containers:
+      - name: ntfy
+        image: binwiederhier/ntfy:v2.14
+        args: ["serve"]
+        env:
+        - name: NTFY_AUTH_USERS
+          valueFrom:
+            secretKeyRef:
+              name: ntfy-auth
+              key: users
+        - name: NTFY_AUTH_TOKENS
+          valueFrom:
+            secretKeyRef:
+              name: ntfy-auth
+              key: tokens
+        ports:
+        - containerPort: 80
+          name: http
+        volumeMounts:
+        - name: config
+          mountPath: /etc/ntfy
+          readOnly: true
+        - name: storage
+          mountPath: /var/lib/ntfy
+        resources:
+          limits:
+            memory: 64Mi
+      volumes:
+      - name: config
+        configMap:
+          name: ntfy
+      - name: storage
+        persistentVolumeClaim:
+          claimName: ntfy
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+  namespace: prod
+  labels:
+    app: ntfy
+spec:
+  selector:
+    app: ntfy
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: http
+      name: http
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ntfy
+  namespace: prod
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls.certresolver: zeroducks
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: ntfy.zeroducks.de
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ntfy
+            port:
+              name: http

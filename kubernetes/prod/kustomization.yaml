@@ -1,0 +1,24 @@
+# kubectl apply -k . --prune -l managedBy=mage -n prod
+# TODO
+# - monitoring, log aggregation, and alerting (e.g., prometheus + grafana + loki + tempo if needed) (or telegraf + influxdb + chronograf + kapacitor)
+# - alert when
+#   - services unavailable (via blackbox-exporter)
+#   - kubernetes resource health? (via kube-state-metrics)
+#   - periodic reports via ntfy to ensure reachability
+# - renovate to update images
+# - geo-blocking, rate-limiting, others?
+# - backup
+#   - push configs to Git
+#   - Grafana Dashboard
+labels:
+  - pairs:
+      managedBy: mage
+    includeTemplates: true
+resources:
+  - namespaces.yaml
+  - traefik.yaml
+  - nginx.yaml
+  - ntfy.yaml
+  - prometheus.yaml
+  - grafana.yaml
+  - node-exporter.yaml

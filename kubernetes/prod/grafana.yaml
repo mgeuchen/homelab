@@ -1,0 +1,83 @@
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: prod
+  labels:
+    app: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        fsGroup: 472
+        supplementalGroups:
+        - 0
+      containers:
+      - name: grafana
+        image: grafana/grafana:12.3.0-19020365962
+        ports:
+        - containerPort: 3000
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /robots.txt
+            port: 3000
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 2
+        livenessProbe:
+          initialDelaySeconds: 30
+          tcpSocket:
+            port: 3000
+        resources:
+          limits:
+            memory: 1Gi
+        volumeMounts:
+          - name: grafana
+            mountPath: /var/lib/grafana
+      volumes:
+      - name: grafana
+        persistentVolumeClaim:
+          claimName: grafana
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: prod
+spec:
+  selector:
+    app: grafana
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: http
+      name: http
