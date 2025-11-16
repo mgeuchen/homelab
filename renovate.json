@@ -1,0 +1,7 @@
+{
+  "extends": [
+    "config:recommended"
+  ],
+  "platform": "github",
+  "dependencyDashboard": true
+}

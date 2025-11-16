@@ -8,7 +8,6 @@
 # - renovate to update images
 # - geo-blocking, rate-limiting, others?
 # - backup
-#   - push configs to Git
 #   - Grafana Dashboard
 labels:
   - pairs:
