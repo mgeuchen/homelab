@@ -4,6 +4,9 @@
     "group:allNonMajor"
   ],
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "major": {
+    "dependencyDashboardApproval": true
+  },
   "kubernetes": {
     "managerFilePatterns": ["/kubernetes/.+\\.ya?ml$/"]
   }
