@@ -170,7 +170,7 @@ spec:
       serviceAccountName: traefik
       containers:
       - name: traefik
-        image: traefik:v3.6.1
+        image: traefik:v3.6.2
         env:
         - name: HETZNER_API_KEY
           valueFrom:
