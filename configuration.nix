@@ -149,6 +149,16 @@ in
   # sound.enable = true;
   # hardware.pulseaudio.enable = true;
 
+  system.autoUpgrade = {
+    enable = true;
+    allowReboot = true;
+    dates = "Sat *-*-* 04:00:00";
+    rebootWindow = {
+      lower = "03:00";
+      upper = "05:00";
+    };
+  };
+
   virtualisation = {
     containers.enable = true;
     podman = {
