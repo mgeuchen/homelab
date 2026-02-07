@@ -124,6 +124,8 @@ in
     "${prod.cloudgate.ip6}" = ["cloudgate.internal"];
   };
 
+  networking.nameservers = [ "1.1.1.1" "8.8.8.8" "2001:4860:4860::8888" ];
+
   networking.useNetworkd = true;
   services.resolved.enable = true;
   networking.useDHCP = false;
@@ -290,6 +292,8 @@ in
 
     # cloudlink interface
     netdevs."10-${wireguardCloudlinkInterface}" = {
+      wireguardConfig.FirewallMark = 42;
+
       netdevConfig = {
         Kind = "wireguard";
         Name = wireguardCloudlinkInterface;
@@ -305,6 +309,7 @@ in
           AllowedIPs = [ "0.0.0.0/0" "::/0" ]; # Accept all source IPs from cloudgate.
           Endpoint = "cloudgate.internal:51820";
           PersistentKeepalive = 10; # Send keepalives every X seconds to keep NAT tables alive. (25 seconds should suffice, but don't)
+          RouteTable = 1000; # Create new routing table for wireguard
         }
       ];
     };
@@ -325,6 +330,7 @@ in
           PublicKey = prod.wireguardPubKeys.mgePhone;
           PresharedKeyFile = secrets.wireguard.vpn.psk.mgePhone;
           AllowedIPs = [ "10.0.2.2" ];
+          RouteTable = 1001; # Create new routing table for wireguard
         }
       ];
     };
@@ -333,14 +339,50 @@ in
     networks."10-${wireguardCloudlinkInterface}" = {
       matchConfig.Name = wireguardCloudlinkInterface;
       address = ["10.0.1.2/24" "fd3d:c446:5d3f::2/64"];
-      routes = [
+      routingPolicyRules = [
         {
-          Destination = "0.0.0.0/0";
-          Gateway = "10.0.1.1";
+          Family = "both";
+
+          # route all non-wireguard/normal traffic through wireguard
+          InvertRule = true;
+          FirewallMark = 42;
+          Table = 1000;
+          Priority = 100;
+        }
+
+        # don't route these IPs through wireguard
+        {
+          To = prod.cloudgate.ip;
+          Priority = 5;
         }
         {
-          Destination = "::/0";
-          Gateway = "fd3d:c446:5d3f::1";
+          To = prod.cloudgate.ip6;
+          Priority = 6;
+        }
+        {
+          To = "10.0.0.0/24";
+          Priority = 7;
+        }
+        {
+          To = "10.0.2.0/24"; # VPN
+          Priority = 8;
+          Table = 1001;
+        }
+        {
+          To = "fc00::/7"; # ULA
+          Priority = 9;
+        }
+        {
+          To = "fe80::/10"; # link-local
+          Priority = 10;
+        }
+        {
+          To = "10.42.0.0/16";
+          Priority = 11;
+        }
+        {
+          To = "10.43.0.0/16";
+          Priority = 12;
         }
       ];
     };
@@ -358,16 +400,11 @@ in
       networkConfig = {
         DHCP = "ipv6";
       };
-      ipv6AcceptRAConfig = {
-        UseGateway = "no";
-      };
       routes = [
         {
-          Destination = prod.cloudgate.ip;
           Gateway = "10.0.0.1";
         }
         {
-          Destination = prod.cloudgate.ip6;
           Gateway = "fe80::1";
         }
       ];
