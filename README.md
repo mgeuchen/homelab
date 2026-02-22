@@ -112,6 +112,7 @@ Until I find a decent way to manage secrets consistently, I should probably just
 - password hashes for OS users, etc. `mkpasswd -m yescrypt`
 - password hashes for ntfy users, etc. `mkpasswd -m bcrypt`
 - NTFY auth `kubectl -n prod create secret generic ntfy-auth --from-literal='users=mage:<bcrypt-password-hash>:user' --from-literal='tokens=mage:tk_<29-random-chars>'`
+- pihole auth `kubectl -n prod create secret generic pihole-auth --from-literal='password=<secure-password>'`
 
 There are two kinds of secrets: those that are generated externally and those that are generated internally.
 Externally managed secrets will always have to be managed manually.

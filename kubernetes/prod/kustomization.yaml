@@ -1,11 +1,11 @@
 # kubectl apply -k . --prune -l managedBy=mage -n prod
 # TODO
+# - run containers without root user
 # - monitoring, log aggregation, and alerting (e.g., prometheus + grafana + loki + tempo if needed) (or telegraf + influxdb + chronograf + kapacitor)
 # - alert when
 #   - services unavailable (via blackbox-exporter)
 #   - kubernetes resource health? (via kube-state-metrics)
 #   - periodic reports via ntfy to ensure reachability
-# - renovate to update images
 # - geo-blocking, rate-limiting, others?
 # - backup
 #   - Grafana Dashboard
@@ -15,9 +15,11 @@ labels:
     includeTemplates: true
 resources:
   - namespaces.yaml
+  - storage.yaml
   - traefik.yaml
   - nginx.yaml
   - ntfy.yaml
   - prometheus.yaml
   - grafana.yaml
   - node-exporter.yaml
+  - pihole.yaml

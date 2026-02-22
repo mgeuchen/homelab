@@ -78,6 +78,22 @@ let
     );
   };
 
+  nixosUpdateMonitor = { config, pkgs, lib, ... }: with lib; {
+    key = "nixosUpdateMonitor";
+    _file = "nixosUpdateMonitor";
+    config.systemd.services = {
+      "success-notification@" = {
+        enable = true;
+        serviceConfig.User = "root";
+        environment.SERVICE = "%i";
+        script = ''
+          ${pkgs.curl}/bin/curl -H "Authorization: Bearer $(cat /etc/secrets/ntfy.token)" -d "$SERVICE succeeded!" https://ntfy.zeroducks.de/pi
+        '';
+      };
+      nixos-upgrade.onSuccess = ["success-notification@nixos-upgrade.service"];
+    };
+  };
+
 in
 
 {
@@ -95,6 +111,7 @@ in
     <nixos-hardware/raspberry-pi/4>
     ./hardware-configuration.nix
     borgbackupMonitor
+    nixosUpdateMonitor
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -124,10 +141,16 @@ in
     "${prod.cloudgate.ip6}" = ["cloudgate.internal"];
   };
 
-  networking.nameservers = [ "1.1.1.1" "8.8.8.8" "2001:4860:4860::8888" ];
+  # networking.nameservers = [ "1.1.1.1" "8.8.8.8" "2001:4860:4860::8888" ];
+  networking.nameservers = [ "127.0.0.1" ]; # use pihole running in k8s
 
   networking.useNetworkd = true;
-  services.resolved.enable = true;
+  services.resolved = {
+    enable = true;
+    extraConfig = ''
+      DNSStubListener=no
+    '';
+  };
   networking.useDHCP = false;
   # Pick only one of the below networking options.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
@@ -197,6 +220,7 @@ in
     tcpdump
     k9s
     htop
+    tmux
   ];
   environment.sessionVariables = {
     BACKUP_CLOUD_SSH="${BORG_RSH} ${prod.cloud-backup.user}@${prod.cloud-backup.host} -p ${prod.cloud-backup.port}";
@@ -278,10 +302,13 @@ in
     enable = true;
     role = "server";
     extraFlags = [
-      "--bind-address 10.0.0.100"
-      "--advertise-address 10.0.0.100"
-      "--node-ip 10.0.0.100"
-      "--tls-san 10.0.0.100"
+      "--bind-address fd8f:cc0:499::100"
+      "--advertise-address fd8f:cc0:499::100"
+      "--node-ip fd8f:cc0:499::100,10.0.0.100"
+      "--tls-san fd8f:cc0:499::100"
+      "--cluster-cidr=fd00:0:42::/56,10.42.0.0/16"  # cidr masks as per k3s docs
+      "--service-cidr=fd00:0:43::/112,10.43.0.0/16" # cidr masks as per k3s docs
+      "--flannel-ipv6-masq" # keep IPv6 addresses cluster-internal for now
       "--disable=traefik"
     ];
   };
@@ -396,16 +423,13 @@ in
     # lan routing
     networks."10-end0" = {
       matchConfig.Name = "end0";
-      address = ["10.0.0.100/24" "fe80::2/64"];
+      address = ["10.0.0.100/24" "fe80::100/64" "fd8f:cc0:499::100/64"];
       networkConfig = {
         DHCP = "ipv6";
       };
       routes = [
         {
           Gateway = "10.0.0.1";
-        }
-        {
-          Gateway = "fe80::1";
         }
       ];
     };
@@ -509,6 +533,9 @@ in
           <description>For use on internal networks. You mostly trust the other computers on the networks to not harm your computer. Only selected incoming connections are accepted.</description>
           
           <source address="10.0.0.0/24"/>
+          <source address="fe80::/10"/>
+          <source address="fd8f:cc0:499::/64"/>
+
           <source address="10.0.2.0/24"/>
           
           <service name="ssh"/>
@@ -530,33 +557,43 @@ in
           <description>For computers in your demilitarized zone that are publicly-accessible with limited access to your internal network. Only selected incoming connections are accepted.</description>
           
           <source address="10.42.0.0/16"/> <!-- k3s pods -->
+          <source address="fd00:0:42::/56"/> <!-- k3s pods -->
           <source address="10.43.0.0/16"/> <!-- k3s services -->
+          <source address="fd00:0:43::/112"/> <!-- k3s services -->
           
           <rule family="ipv4">
             <destination address="10.42.0.0/16"/> <!-- k3s pods -->
+            <accept/>
+          </rule>
+          <rule family="ipv6">
+            <destination address="fd00:0:42::/56"/> <!-- k3s pods -->
             <accept/>
           </rule>
           <rule family="ipv4">
             <destination address="10.43.0.0/16"/> <!-- k3s services -->
             <accept/>
           </rule>
-          <rule family="ipv4">
-            <destination address="10.0.0.100/32"/>
+          <rule family="ipv6">
+            <destination address="fd00:0:43::/112"/> <!-- k3s services -->
+            <accept/>
+          </rule>
+          <rule family="ipv6">
+            <destination address="fd8f:cc0:499::100/128"/>
             <port port="6443" protocol="tcp"/> <!-- kubernets API server -->
             <accept/>
           </rule>
-          <rule family="ipv4">
-            <destination address="10.0.0.100/32"/>
+          <rule family="ipv6">
+            <destination address="fd8f:cc0:499::100/128"/>
             <port port="10250" protocol="tcp"/> <!-- kubelet API -->
             <accept/>
           </rule>
-          <rule family="ipv4">
-            <destination address="10.0.0.100/32"/>
+          <rule family="ipv6">
+            <destination address="fd8f:cc0:499::100/128"/>
             <port port="10256" protocol="tcp"/> <!-- kube-proxy -->
             <accept/>
           </rule>
-          <rule family="ipv4">
-            <destination address="10.0.0.100/32"/>
+          <rule family="ipv6">
+            <destination address="fd8f:cc0:499::100/128"/>
             <port port="9100" protocol="tcp"/> <!-- node-exporter -->
             <accept/>
           </rule>

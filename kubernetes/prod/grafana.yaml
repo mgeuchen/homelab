@@ -9,7 +9,7 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: local-path-retain
   resources:
     requests:
       storage: 1Gi
@@ -76,8 +76,33 @@ metadata:
 spec:
   selector:
     app: grafana
+  ipFamilyPolicy: PreferDualStack
   ports:
     - protocol: TCP
       port: 3000
       targetPort: http
       name: http
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: prod
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls.certresolver: zeroducks
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: grafana.zeroducks.de
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              name: http

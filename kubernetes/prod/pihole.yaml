@@ -1,36 +1,15 @@
 ---
 
 apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ntfy
-  namespace: prod
-  labels:
-    app: ntfy
-data:
-  server.yml: |
-    log-level: info
-    base-url: https://ntfy.zeroducks.de
-    cache-file: /var/lib/ntfy/cache.db
-    attachment-cache-dir: /var/lib/ntfy/attachments
-    auth-file: /var/lib/ntfy/user.db
-    auth-default-access: deny-all
-    auth-access:
-    - 'mage:*:rw'
-
-
----
-
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: ntfy
+  name: pihole
   labels:
-    app: ntfy
+    app: pihole
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: local-path-retain
   resources:
     requests:
       storage: 128Mi
@@ -40,67 +19,63 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ntfy
+  name: pihole
   namespace: prod
   labels:
-    app: ntfy
+    app: pihole
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ntfy
+      app: pihole
   template:
     metadata:
       labels:
-        app: ntfy
+        app: pihole
     spec:
       containers:
-      - name: ntfy
-        image: binwiederhier/ntfy:v2.15
-        args: ["serve"]
+      - name: pihole
+        image: pihole/pihole:2026.02.0
         env:
-        - name: NTFY_AUTH_USERS
+        # - name: TZ
+        #   value: Europe/London
+        - name: FTLCONF_webserver_api_password
           valueFrom:
             secretKeyRef:
-              name: ntfy-auth
-              key: users
-        - name: NTFY_AUTH_TOKENS
-          valueFrom:
-            secretKeyRef:
-              name: ntfy-auth
-              key: tokens
+              name: pihole-auth
+              key: password
         ports:
         - containerPort: 80
           name: http
+        - containerPort: 53
+          protocol: TCP
+          name: dns-tcp
+        - containerPort: 53
+          protocol: UDP
+          name: dns-udp
         volumeMounts:
-        - name: config
-          mountPath: /etc/ntfy
-          readOnly: true
         - name: storage
-          mountPath: /var/lib/ntfy
+          mountPath: /etc/pihole
         resources:
           limits:
             memory: 64Mi
       volumes:
-      - name: config
-        configMap:
-          name: ntfy
       - name: storage
         persistentVolumeClaim:
-          claimName: ntfy
+          claimName: pihole
 
 ---
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: ntfy
+  name: pihole-http
   namespace: prod
   labels:
-    app: ntfy
+    app: pihole
 spec:
   selector:
-    app: ntfy
+    app: pihole
   ipFamilyPolicy: PreferDualStack
   ports:
     - protocol: TCP
@@ -113,7 +88,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ntfy
+  name: pihole
   namespace: prod
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
@@ -121,13 +96,37 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-  - host: ntfy.zeroducks.de
+  - host: pihole.zeroducks.de
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: ntfy
+            name: pihole-http
             port:
               name: http
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pihole-dns
+  namespace: prod
+  labels:
+    app: pihole
+spec:
+  type: LoadBalancer
+  selector:
+    app: pihole
+  ipFamilyPolicy: RequireDualStack
+  ports:
+    - name: dns-tcp
+      protocol: TCP
+      port: 53
+      targetPort: dns-tcp
+    - name: dns-udp
+      protocol: UDP
+      port: 53
+      targetPort: dns-udp

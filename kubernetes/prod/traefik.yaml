@@ -59,7 +59,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: local-path-retain
   resources:
     requests:
       storage: 128Mi
@@ -85,6 +85,12 @@ data:
     entryPoints:
       web:
         address: ":80"
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+              permanent: true
       websecure:
         address: ":443"
         http:
@@ -148,14 +154,13 @@ data:
 ---
 
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: traefik
   namespace: prod
   labels:
     app: traefik
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: traefik
@@ -172,7 +177,7 @@ spec:
       - name: traefik
         image: traefik:v3.6.7
         env:
-        - name: HETZNER_API_KEY
+        - name: HETZNER_API_TOKEN
           valueFrom:
             secretKeyRef:
               name: dns-api-token
@@ -218,6 +223,8 @@ spec:
   type: LoadBalancer
   selector:
     app: traefik
+  externalTrafficPolicy: Local
+  ipFamilyPolicy: RequireDualStack
   ports:
     - name: http
       port: 80
