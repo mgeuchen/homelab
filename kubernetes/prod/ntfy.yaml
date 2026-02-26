@@ -11,6 +11,7 @@ data:
   server.yml: |
     log-level: info
     base-url: https://ntfy.zeroducks.de
+    listen-http: "[::]:8080"
     cache-file: /var/lib/ntfy/cache.db
     attachment-cache-dir: /var/lib/ntfy/attachments
     auth-file: /var/lib/ntfy/user.db
@@ -54,10 +55,21 @@ spec:
       labels:
         app: ntfy
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
       containers:
       - name: ntfy
         image: binwiederhier/ntfy:v2.17
         args: ["serve"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         env:
         - name: NTFY_AUTH_USERS
           valueFrom:
@@ -70,7 +82,7 @@ spec:
               name: ntfy-auth
               key: tokens
         ports:
-        - containerPort: 80
+        - containerPort: 8080
           name: http
         volumeMounts:
         - name: config

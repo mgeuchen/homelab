@@ -84,7 +84,7 @@ data:
 
     entryPoints:
       web:
-        address: ":80"
+        address: ":8000"
         http:
           redirections:
             entryPoint:
@@ -92,7 +92,7 @@ data:
               scheme: https
               permanent: true
       websecure:
-        address: ":443"
+        address: ":8443"
         http:
           tls: {}
       traefik:
@@ -172,10 +172,21 @@ spec:
         prometheus.io/scrape: 'true'
         prometheus.io/port: '8080'
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
       serviceAccountName: traefik
       containers:
       - name: traefik
         image: traefik:v3.6.8
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
         env:
         - name: HETZNER_API_TOKEN
           valueFrom:
@@ -184,9 +195,9 @@ spec:
               key: token
         ports:
         - name: http
-          containerPort: 80
+          containerPort: 8000
         - name: https
-          containerPort: 443
+          containerPort: 8443
         volumeMounts:
         - name: config-static
           mountPath: /etc/traefik
@@ -196,6 +207,8 @@ spec:
         #   readOnly: true
         - name: certs
           mountPath: /var/traefik/certs
+        - name: tmp
+          mountPath: /tmp
         resources:
           limits:
             memory: 64Mi
@@ -209,6 +222,8 @@ spec:
       - name: certs
         persistentVolumeClaim:
           claimName: traefik-certs
+      - name: tmp
+        emptyDir: {}
 
 ---
 
