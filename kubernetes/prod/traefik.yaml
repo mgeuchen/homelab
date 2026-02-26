@@ -180,7 +180,7 @@ spec:
       serviceAccountName: traefik
       containers:
       - name: traefik
-        image: traefik:v3.6.8
+        image: traefik:v3.6.9
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
