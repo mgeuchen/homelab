@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: node-exporter
-        image: quay.io/prometheus/node-exporter:v1.10.2
+        image: quay.io/prometheus/node-exporter:v1.11.1
         args: ["--path.rootfs=/host", "--path.udev.data=/host/run/udev/data"]
         ports:
         - name: metrics
