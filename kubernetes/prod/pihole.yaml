@@ -35,7 +35,7 @@ spec:
     spec:
       containers:
       - name: pihole
-        image: pihole/pihole:2026.04.1
+        image: pihole/pihole:2026.05.0
         env:
         # - name: TZ
         #   value: Europe/London
