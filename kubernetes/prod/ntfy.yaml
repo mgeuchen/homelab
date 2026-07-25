@@ -62,7 +62,7 @@ spec:
         fsGroup: 10000
       containers:
       - name: ntfy
-        image: binwiederhier/ntfy:v2.23
+        image: binwiederhier/ntfy:v2.26
         args: ["serve"]
         securityContext:
           allowPrivilegeEscalation: false
