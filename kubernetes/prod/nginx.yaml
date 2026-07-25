@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:1.31.0
+        image: nginx:1.31.3
         resources:
           limits:
             memory: 64Mi
