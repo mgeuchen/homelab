@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+[Interface]
+Address = 10.0.1.1/24, fd3d:c446:5d3f::1/64
+ListenPort = 51820
+PrivateKey = {{ cloudgate_private_key }}
+
+[Peer]
+PublicKey = {{ pi_public_key }}
+PresharedKey = {{ pi_cloudgate_psk }}
+AllowedIPs = 10.0.1.2/32, fd3d:c446:5d3f::2/128

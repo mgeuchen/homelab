@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<zone>
+  <short>Public</short>
+  <description>For use in public areas. You do not trust the other computers on networks to not harm your computer. Only selected incoming connections are accepted.</description>
+  <service name="ssh"/>
+  <service name="dhcpv6-client"/>
+  <service name="wireguard"/>
+  <port port="8080" protocol="tcp"/>
+  <port port="51821" protocol="udp"/>
+  <masquerade/>
+  <forward-port port="8080" protocol="tcp" to-addr="10.0.1.2"/>
+  <forward-port port="8080" protocol="udp" to-addr="10.0.1.2"/>
+  <forward-port port="51821" protocol="udp" to-port="51820" to-addr="10.0.1.2"/>
+  <rule family="ipv6">
+    <forward-port port="8080" protocol="tcp" to-port="8080" to-addr="fd3d:c446:5d3f::2"/>
+  </rule>
+  <rule family="ipv6">
+    <masquerade/>
+  </rule>
+  <interface name="ens6"/>
+  <forward/>
+</zone>

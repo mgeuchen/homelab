@@ -1,0 +1,4 @@
+ungrouped:
+  hosts:
+    cloudgate.internal:
+      ansible_user: gatekeeper
